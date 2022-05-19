@@ -37,7 +37,12 @@ class Blockchain {
         if( this.height === -1){
             console.log("heeeeereeee2")
             let block = new BlockClass.Block({data: 'Genesis Block'});
-            await this._addBlock(block);
+            try {
+                await this._addBlock(block);  
+            } catch (error) {
+                console.log(error)
+            }
+            
         }
     }
 
@@ -72,9 +77,17 @@ class Blockchain {
         }
         console.log(block)
         block.hash = SHA256(JSON.stringify(block)).toString();
-        self.chain.push(block)
-        self.height ++;
-        resolve(block)
+
+        let errorLogs = await this.validateChain()
+        console.log("errorlogs",errorLogs)
+        if (errorLogs.length == 0){
+            self.chain.push(block)
+            self.height ++;
+            resolve(block)
+        } else {
+            reject(errorLogs)
+        }
+
         });
     }
 
@@ -117,11 +130,16 @@ class Blockchain {
         return new Promise(async (resolve, reject) => {
             const time = parseInt(message.split(':')[1])
             const currentTime = parseInt(new Date().getTime().toString().slice(0, -3));
-            if (currentTime < (time + (5 * 60 * 1000))) {
+            if (currentTime < (time + 300)) {
                 const isValid = bitcoinMessage.verify(message, address, signature);
                 if (isValid) {
                     const newBlock = new BlockClass.Block({ owner: address, star: star });
-                    resolve(self._addBlock(newBlock));
+                    try {
+                        resolve(self._addBlock(newBlock));
+                    } catch (error) {
+                        console.log(error)
+                    }
+                    
                 } else {
                     reject('Not valid signature')
                 }
@@ -200,7 +218,7 @@ class Blockchain {
         let errorLog = [];
         return new Promise(async (resolve, reject) => {
             let idx = 0
-            let promises = [];
+            let validatePromises = [];
             self.chain.forEach(block =>{
                 if (block.height > 0){
                     if (block.previousBlockHash != self.chain[idx - 1].hash){
